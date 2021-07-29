@@ -70,7 +70,7 @@ function ProfileHandler(db) {
         if (testComplyWithRequirements !== true) {
             const profile = {
                 updateError: "Bank Routing number does not comply with requirements for format specified",
-                firstname,
+                firstName,
                 lastName,
                 ssn,
                 dob,
