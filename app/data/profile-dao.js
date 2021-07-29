@@ -39,7 +39,7 @@ function ProfileDAO(db) {
     };
     */
 
-    this.updateUser = (userId, firstName, lastName, ssn, dob, address, bankAcc, bankRouting, callback) => {
+    this.updateUser = (userId, firstName, lastName, ssn, dob, address, bankAcc, bankRouting, website, callback) => {
 
         // Create user document
         const user = {};
@@ -63,6 +63,9 @@ function ProfileDAO(db) {
         }
         if (dob) {
             user.dob = dob;
+        }
+        if (website) {
+            user.website = website;
         }
         /*
         // Fix for A7 - Sensitive Data Exposure

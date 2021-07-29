@@ -23,18 +23,24 @@ function ProfileHandler(db) {
 
             // @TODO @FIXME
             // while the developer intentions were correct in encoding the user supplied input so it
-            // doesn't end up as an XSS attack, the context is incorrect as it is encoding the firstname for HTML
-            // while this same variable is also used in the context of a URL link element
-            doc.website = ESAPI.encoder().encodeForHTML(doc.website)
+            // doesn't end up as an XSS attack, the context is incorrect as it is encoding the website for HTML
+            // doc.website = ESAPI.encoder().encodeForHTML(doc.website)
             // fix it by replacing the above with another template variable that is used for 
             // the context of a URL in a link header
-            // doc.website = ESAPI.encoder().encodeForURL(doc.website)
-
+            this.sanitizeProfile(doc);
             return res.render("profile", {
                 ...doc,
                 environmentalScripts
             });
         });
+    };
+
+    this.sanitizeProfile = (profile) => {
+        // Note: OWASP example seems to have been broken in the following commit
+        // https://github.com/OWASP/NodeGoat/commit/7c293e721bd1e95be6f82475d295b9b10e3b584e
+        profile.website = ESAPI.encoder().encodeForHTMLAttribute(profile.website);
+        profile.firstNameSafeString = ESAPI.encoder().encodeForHTML(profile.firstName);
+        profile.firstNameSafeURLString = ESAPI.encoder().encodeForURL(profile.firstName);
     };
 
     this.handleProfileUpdate = (req, res, next) => {
@@ -46,7 +52,8 @@ function ProfileHandler(db) {
             dob,
             address,
             bankAcc,
-            bankRouting
+            bankRouting,
+            website
         } = req.body;
 
         // Fix for Section: ReDoS attack
@@ -61,18 +68,20 @@ function ProfileHandler(db) {
         const testComplyWithRequirements = regexPattern.test(bankRouting);
         // if the regex test fails we do not allow saving
         if (testComplyWithRequirements !== true) {
-            const firstNameSafeString = firstName
-            return res.render("profile", {
+            const profile = {
                 updateError: "Bank Routing number does not comply with requirements for format specified",
-                firstNameSafeString,
+                firstname,
                 lastName,
                 ssn,
                 dob,
                 address,
                 bankAcc,
                 bankRouting,
-                environmentalScripts
-            });
+                environmentalScripts,
+                website,
+            }
+            this.sanitizeProfile(profile)
+            return res.render("profile", profile);
         }
 
         const {
@@ -88,6 +97,7 @@ function ProfileHandler(db) {
             address,
             bankAcc,
             bankRouting,
+            website,
             (err, user) => {
 
                 if (err) return next(err);
@@ -96,6 +106,7 @@ function ProfileHandler(db) {
                 //firstName = firstName.trim();
                 user.updateSuccess = true;
                 user.userId = userId;
+                this.sanitizeProfile(user);
 
                 return res.render("profile", {
                     ...user,
