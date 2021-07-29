@@ -12,7 +12,7 @@ function ProfileDAO(db) {
 
     const users = db.collection("users");
 
-    /* Fix for A6 - Sensitive Data Exposure
+    /* Fix for A6 - Sensitive Data Exposure */
 
     // Use crypto module to save sensitive data such as ssn, dob in encrypted format
     const crypto = require("crypto");
@@ -20,24 +20,33 @@ function ProfileDAO(db) {
 
     /// Helper method create initialization vector
     // By default the initialization vector is not secure enough, so we create our own
-    const createIV = () => {
-        // create a random salt for the PBKDF2 function - 16 bytes is the minimum length according to NIST
-        const salt = crypto.randomBytes(16);
-        return crypto.pbkdf2Sync(config.cryptoKey, salt, 100000, 512, "sha512");
+    const createIV = () => crypto.randomBytes(16);
+    const createSalt = () => crypto.randomBytes(16);
+    const deriveKey = (salt) => {
+        return crypto.pbkdf2Sync(config.cryptoKey, salt, 100000, 32, "sha512");
     };
 
+    // Note the encryption version from NodeGoat is buggy as the IV is too long and the password is not derived as recommended.
+    // See https://github.com/nodejs/node/blob/933d8eb689bb4bc412e71c0069bf9b7b24de4f9d/doc/api/deprecations.md#dep0106-cryptocreatecipher-and-cryptocreatedecipher
     // Helper methods to encryt / decrypt
     const encrypt = (toEncrypt) => {
-        config.iv = createIV();
-        const cipher = crypto.createCipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
-        return `${cipher.update(toEncrypt, "utf8", "hex")} ${cipher.final("hex")}`;
+        const iv = createIV();
+        const salt = createSalt();
+        const derivedKey = deriveKey(salt);
+        const cipher = crypto.createCipheriv(config.cryptoAlgo, derivedKey, iv);
+        const encrypted = Buffer.concat([cipher.update(toEncrypt), cipher.final()]);
+        return `${salt.toString('hex')}:${iv.toString('hex')}:${encrypted.toString('hex')}`;
     };
 
     const decrypt = (toDecrypt) => {
-        const decipher = crypto.createDecipheriv(config.cryptoAlgo, config.cryptoKey, config.iv);
-        return `${decipher.update(toDecrypt, "hex", "utf8")} ${decipher.final("utf8")}`;
+        const [saltHex, ivHex, encryptedHex] = toDecrypt.split(':');
+        const salt = Buffer.from(saltHex, 'hex');
+        const iv = Buffer.from(ivHex, 'hex');
+        const encrypted = Buffer.from(encryptedHex, 'hex');
+        const derivedKey = deriveKey(salt);
+        const decipher = crypto.createDecipheriv(config.cryptoAlgo, derivedKey, iv);
+        return `${decipher.update(encrypted)}${decipher.final()}`;
     };
-    */
 
     this.updateUser = (userId, firstName, lastName, ssn, dob, address, bankAcc, bankRouting, website, callback) => {
 
@@ -58,17 +67,11 @@ function ProfileDAO(db) {
         if (bankRouting) {
             user.bankRouting = bankRouting;
         }
-        if (ssn) {
-            user.ssn = ssn;
-        }
-        if (dob) {
-            user.dob = dob;
-        }
         if (website) {
             user.website = website;
         }
-        /*
-        // Fix for A7 - Sensitive Data Exposure
+
+        // Fix for A6 - Sensitive Data Exposure
         // Store encrypted ssn and DOB
         if(ssn) {
             user.ssn = encrypt(ssn);
@@ -76,7 +79,6 @@ function ProfileDAO(db) {
         if(dob) {
             user.dob = encrypt(dob);
         }
-        */
 
         users.update({
                 _id: parseInt(userId)
@@ -86,7 +88,7 @@ function ProfileDAO(db) {
             err => {
                 if (!err) {
                     console.log("Updated user profile");
-                    return callback(null, user);
+                    return callback(null, {...user, ssn, dob});
                 }
 
                 return callback(err, null);
@@ -100,12 +102,10 @@ function ProfileDAO(db) {
             },
             (err, user) => {
                 if (err) return callback(err, null);
-                /*
                 // Fix for A6 - Sensitive Data Exposure
                 // Decrypt ssn and DOB values to display to user
                 user.ssn = user.ssn ? decrypt(user.ssn) : "";
                 user.dob = user.dob ? decrypt(user.dob) : "";
-                */
 
                 callback(null, user);
             }
