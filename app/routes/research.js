@@ -4,15 +4,22 @@ const {
     environmentalScripts
 } = require("../../config/config");
 
+const symbolPattern = /^[0-9a-zA-Z]+$/;
+
 function ResearchHandler(db) {
     "use strict";
 
     const researchDAO = new ResearchDAO(db);
 
     this.displayResearch = (req, res) => {
-
         if (req.query.symbol) {
-            const url = req.query.url + req.query.symbol;
+            if (symbolPattern.test(req.query.symbol) !== true) {
+                res.status(400)
+                res.send({ error: 'Invalid Symbol' });
+                return res.end();
+            }
+
+            const url = 'https://finance.yahoo.com/quote/' + req.query.symbol;
             return needle.get(url, (error, newResponse, body) => {
                 if (!error && newResponse.statusCode === 200) {
                     res.writeHead(200, {
